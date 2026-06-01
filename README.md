@@ -18,9 +18,7 @@
 
 ## 应用截图
 
-![截图1](screenshots/截图1.jpg)
-
-![截图2](screenshots/截图2.jpg)
+![截图1](screenshots/截图1.jpg),![截图2](screenshots/截图2.jpg)
 
 ---
 

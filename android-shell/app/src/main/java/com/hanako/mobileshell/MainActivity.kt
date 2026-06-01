@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootContainer: FrameLayout
     private lateinit var webView: WebView
+    private lateinit var loadingView: LinearLayout
     private lateinit var errorView: LinearLayout
     private lateinit var errorDetail: TextView
     private lateinit var btnRetry: Button
@@ -66,6 +67,7 @@ class MainActivity : AppCompatActivity() {
 
         rootContainer = findViewById(R.id.root_container)
         webView = findViewById(R.id.web_view)
+        loadingView = findViewById(R.id.loading_view)
         errorView = findViewById(R.id.error_view)
         errorDetail = findViewById(R.id.error_detail)
         btnRetry = findViewById(R.id.btn_retry)
@@ -76,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         setupBackPress()
         setupRetry()
         setupChangeUrl()
+        setupLoadingChangeUrl()
 
         if (savedInstanceState == null) {
             loadTargetUrl()
@@ -135,12 +138,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                isLoading = true; hasMainFrameError = false; hideError()
+                isLoading = true; hasMainFrameError = false; showLoading()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 isLoading = false; cancelLoadTimeout()
                 if (!hasMainFrameError) {
+                    hideLoading()
                     hideError()
                     // Bootstrap 轮询 DOM 就绪，其余注入延迟统一缩短为 300ms
                     injectBootstrapLoader()
@@ -158,6 +162,7 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     isLoading = false; hasMainFrameError = true; cancelLoadTimeout()
+                    hideLoading()
                     android.util.Log.e("MobileShell", "Error: ${error?.description} at ${request.url}")
                     showError(getString(R.string.error_default_detail))
                 }
@@ -216,26 +221,32 @@ class MainActivity : AppCompatActivity() {
     private fun setupRetry() { btnRetry.setOnClickListener { loadTargetUrl() } }
 
     private fun setupChangeUrl() {
-        btnChangeUrl.setOnClickListener {
-            val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(64, 32, 64, 16) }
-            val urlInput = EditText(this).apply { setText(currentUrl); setSingleLine(true); hint = getString(R.string.dialog_hint_url) }
-            val keyInput = EditText(this).apply { setText(accessKey); setSingleLine(true); hint = "桌面端显示的访问密钥" }
-            layout.addView(TextView(this).apply { text = "服务器地址"; textSize = 13f })
-            layout.addView(urlInput)
-            layout.addView(TextView(this).apply { text = "访问密钥（可留空）"; textSize = 13f; setPadding(0, 24, 0, 0) })
-            layout.addView(keyInput)
-            AlertDialog.Builder(this).setTitle(R.string.dialog_title_change_url).setView(layout)
-                .setPositiveButton("确定") { _, _ ->
-                    val url = urlInput.text.toString().trim()
-                    if (url.isNotEmpty()) {
-                        currentUrl = if (url.endsWith("/")) url else "$url/"
-                        accessKey = keyInput.text.toString().trim()
-                        prefs.edit().putString(KEY_URL, currentUrl).putString(KEY_ACCESS_KEY, accessKey).apply()
-                        CookieManager.getInstance().removeAllCookies(null)
-                        loadTargetUrl()
-                    }
-                }.setNegativeButton("取消", null).show()
-        }
+        btnChangeUrl.setOnClickListener { showUrlDialog() }
+    }
+
+    private fun setupLoadingChangeUrl() {
+        findViewById<Button>(R.id.btn_loading_change_url).setOnClickListener { showUrlDialog() }
+    }
+
+    private fun showUrlDialog() {
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(64, 32, 64, 16) }
+        val urlInput = EditText(this).apply { setText(currentUrl); setSingleLine(true); hint = getString(R.string.dialog_hint_url) }
+        val keyInput = EditText(this).apply { setText(accessKey); setSingleLine(true); hint = "桌面端显示的访问密钥" }
+        layout.addView(TextView(this).apply { text = "服务器地址"; textSize = 13f })
+        layout.addView(urlInput)
+        layout.addView(TextView(this).apply { text = "访问密钥（可留空）"; textSize = 13f; setPadding(0, 24, 0, 0) })
+        layout.addView(keyInput)
+        AlertDialog.Builder(this).setTitle(R.string.dialog_title_change_url).setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val url = urlInput.text.toString().trim()
+                if (url.isNotEmpty()) {
+                    currentUrl = if (url.endsWith("/")) url else "$url/"
+                    accessKey = keyInput.text.toString().trim()
+                    prefs.edit().putString(KEY_URL, currentUrl).putString(KEY_ACCESS_KEY, accessKey).apply()
+                    CookieManager.getInstance().removeAllCookies(null)
+                    loadTargetUrl()
+                }
+            }.setNegativeButton("取消", null).show()
     }
 
     // ── Bootstrap: poll for DOM readiness ─────────────────────
@@ -373,10 +384,12 @@ class MainActivity : AppCompatActivity() {
 
     // ── Load & Error ──────────────────────────────────────────
 
-    private fun loadTargetUrl() { hasMainFrameError = false; hideError(); startLoadTimeout(); webView.loadUrl(currentUrl) }
+    private fun loadTargetUrl() { hasMainFrameError = false; showLoading(); hideError(); startLoadTimeout(); webView.loadUrl(currentUrl) }
+    private fun showLoading() { loadingView.visibility = View.VISIBLE }
+    private fun hideLoading() { loadingView.visibility = View.GONE }
     private fun showError(d: String) { errorDetail.text = d; errorView.visibility = View.VISIBLE }
     private fun hideError() { errorView.visibility = View.GONE }
-    private fun startLoadTimeout() { cancelLoadTimeout(); timeoutHandler.postDelayed({ if (isLoading) { isLoading = false; hasMainFrameError = true; webView.stopLoading(); showError(getString(R.string.error_timeout_detail)) } }, LOAD_TIMEOUT_MS) }
+    private fun startLoadTimeout() { cancelLoadTimeout(); timeoutHandler.postDelayed({ if (isLoading) { isLoading = false; hasMainFrameError = true; webView.stopLoading(); hideLoading(); showError(getString(R.string.error_timeout_detail)) } }, LOAD_TIMEOUT_MS) }
     private fun cancelLoadTimeout() { timeoutHandler.removeCallbacksAndMessages(null) }
     private fun isAllowedTargetUri(uri: Uri): Boolean { try { val s = Uri.parse(currentUrl); val p = if (uri.port == -1) 80 else uri.port; val sp = if (s.port == -1) 80 else s.port; return uri.host == s.host && p == sp } catch (_: Exception) { return false } }
 }

@@ -11,6 +11,40 @@
         android:layout_height="match_parent" />
 
     <LinearLayout
+        android:id="@+id/loading_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/error_bg"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="fitCenter" />
+
+        <ProgressBar
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginTop="20dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@color/error_detail" />
+
+        <Button
+            android:id="@+id/btn_loading_change_url"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:minWidth="160dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/btn_change_url"
+            android:textSize="14sp"
+            android:backgroundTint="@color/error_detail"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/error_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

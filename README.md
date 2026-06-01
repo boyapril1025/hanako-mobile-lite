@@ -35,6 +35,8 @@ Hanako 移动端轻量壳应用。基于 Android WebView，为本地运行的 Ha
 - **默认地址**：`http://192.168.31.11:14500/mobile/`
 - **验证状态**：真机测试通过
 
+[下载 APK](hanako-mobile-lite-v0.1.5-debug.apk)
+
 ## V0.1.5 新增特性（基于 V0.1）
 
 ### 界面与体验

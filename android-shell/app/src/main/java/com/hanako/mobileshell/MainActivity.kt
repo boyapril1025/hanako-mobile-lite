@@ -30,7 +30,10 @@ import androidx.core.view.WindowInsetsCompat
 
 class ShellBridge(private val onReady: () -> Unit) {
     @android.webkit.JavascriptInterface
-    fun onDomReady() { android.os.Handler(android.os.Looper.getMainLooper()).post { onReady() } }
+    fun onDomReady() {
+        android.util.Log.d("HanakoShell", "[Bridge] DOM ready, hiding loading")
+        android.os.Handler(android.os.Looper.getMainLooper()).post { onReady() }
+    }
 }
 
 class MainActivity : AppCompatActivity() {
@@ -40,7 +43,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "hanako_shell"
         private const val KEY_URL = "server_url"
         private const val KEY_ACCESS_KEY = "access_key"
-        private const val LOAD_TIMEOUT_MS = 8_000L
+        private const val LOAD_TIMEOUT_MS = 15_000L
         private const val FILE_CHOOSER_REQUEST = 1001
     }
 
@@ -126,6 +129,7 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             cacheMode = WebSettings.LOAD_NO_CACHE
+            userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
         CookieManager.getInstance().apply {
@@ -134,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.setBackgroundColor(0x00000000)
-        webView.addJavascriptInterface(ShellBridge { hideLoading() }, "ShellBridge")
+        webView.addJavascriptInterface(ShellBridge { cancelLoadTimeout(); hideLoading() }, "ShellBridge")
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -148,7 +152,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                isLoading = false; cancelLoadTimeout()
+                isLoading = false
                 if (!hasMainFrameError) {
                     hideError()
                     // Bootstrap 轮询 DOM 就绪，其余注入延迟统一缩短为 300ms
@@ -162,6 +166,11 @@ class MainActivity : AppCompatActivity() {
                         webView.loadUrl("javascript:" + "(function(){if(window.__hanaAutoCloseSb)return;window.__hanaAutoCloseSb=true;document.addEventListener('click',function(e){var sb=document.querySelector('[class*=\"sidebar\" i]');if(!sb||sb.offsetWidth<50)return;if(!sb.contains(e.target))return;if(e.target.closest('#tbToggleLeft,#newSessionBtn,#sidebarCollapseBtn,button[aria-label],.tb-toggle,.sidebar-action-btn'))return;console.log('[Shell] auto-close: click in sidebar, closing');setTimeout(function(){var bt=document.getElementById('tbToggleLeft');if(bt){console.log('[Shell] auto-close: toggling');bt.click()}},300)},true)})()")
                     }, 300)
                 }
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                android.util.Log.w("HanakoShell", "[SSL] Ignoring cert error: ${error?.primaryError} — this is your own server, proceeding")
+                handler?.proceed()
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -260,10 +269,11 @@ class MainActivity : AppCompatActivity() {
         val s = "(function(){if(window.__hanaBoot)return;window.__hanaBoot=true;" +
             "var MAX=40,INT=200,TRIES=0;" +
             "function poll(){" +
-            "if(++TRIES>=MAX){console.log('[Shell] DOM poll timeout, force ready');window.__hanaDomReady=Date.now();try{ShellBridge.onDomReady()}catch(e){}return};" +
+            "if(++TRIES>=MAX){console.log('[Shell] DOM poll timeout, force ready');window.__hanaDomReady=Date.now();try{ShellBridge.onDomReady()}catch(e){console.log('[Shell] bridge err:'+e)}return};" +
             "if(document.readyState!=='complete'){setTimeout(poll,INT);return};" +
-            "var root=document.querySelector('.mobile-desktop-root,.ProseMirror,body');" +
-            "if(!root){if(++TRIES<MAX){setTimeout(poll,INT);return}}" +
+            "var h=document.querySelector('.mobile-desktop-root,.ProseMirror,#tbToggleLeft,#tbTogglePreview');" +
+            "if(!h){console.log('[Shell] poll: no Hanako element yet, retry');setTimeout(poll,INT);return};" +
+            "if(document.body.children.length<2&&h.offsetHeight<1){console.log('[Shell] poll: empty page, retry');setTimeout(poll,INT);return};" +
             "window.__hanaDomReady=(Date.now());" +
             "console.log('[Shell] DOM ready t='+(TRIES*INT+100)+'ms');" +
             "try{ShellBridge.onDomReady()}catch(e){console.log('[Shell] bridge err:'+e)}" +
@@ -391,12 +401,11 @@ class MainActivity : AppCompatActivity() {
 
     // ── Load & Error ──────────────────────────────────────────
 
-    private fun loadTargetUrl() { hasMainFrameError = false; showLoading(); hideError(); startLoadTimeout(); webView.loadUrl(currentUrl) }
+    private fun loadTargetUrl() { hasMainFrameError = false; isLoading = true; showLoading(); hideError(); cancelLoadTimeout(); android.util.Log.d("HanakoShell", "[Load] URL=$currentUrl"); try { java.net.IDN.toASCII(currentUrl) } catch (_: Exception) {}; timeoutHandler.postDelayed({ isLoading = false; hasMainFrameError = true; webView.stopLoading(); hideLoading(); android.util.Log.e("HanakoShell", "[Timeout] Load timeout reached, showing error"); showError(getString(R.string.error_timeout_detail)) }, LOAD_TIMEOUT_MS); webView.loadUrl(currentUrl) }
     private fun showLoading() { loadingView.visibility = View.VISIBLE }
     private fun hideLoading() { loadingView.visibility = View.GONE }
-    private fun showError(d: String) { errorDetail.text = d; errorView.visibility = View.VISIBLE }
+    private fun showError(d: String) { errorDetail.text = "$d\n\n当前地址：$currentUrl"; errorView.visibility = View.VISIBLE }
     private fun hideError() { errorView.visibility = View.GONE }
-    private fun startLoadTimeout() { cancelLoadTimeout(); timeoutHandler.postDelayed({ if (isLoading) { isLoading = false; hasMainFrameError = true; webView.stopLoading(); hideLoading(); showError(getString(R.string.error_timeout_detail)) } }, LOAD_TIMEOUT_MS) }
     private fun cancelLoadTimeout() { timeoutHandler.removeCallbacksAndMessages(null) }
     private fun isAllowedTargetUri(uri: Uri): Boolean { try { val s = Uri.parse(currentUrl); val p = if (uri.port == -1) 80 else uri.port; val sp = if (s.port == -1) 80 else s.port; return uri.host == s.host && p == sp } catch (_: Exception) { return false } }
 }

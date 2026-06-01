@@ -1,0 +1,27 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+
+# Kotlin
+.kotlin/
+
+# Local Gradle distributions / large archives
+android-shell/gradle/distributions/
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Project backups (large, not for repo)
+backups/
+
+# Python / temporary files
+__pycache__/
+*.pyc
+*.tmp

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="status_bar_bg">#FFF8F5ED</color>
+    <color name="nav_bar_bg">#FFF8F5ED</color>
+    <color name="error_bg">#FFF7F7F7</color>
+    <color name="error_title">#FF222222</color>
+    <color name="error_detail">#FF666666</color>
+    <color name="ic_launcher_background">#FFF5F0EB</color>
+</resources>

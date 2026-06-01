@@ -28,6 +28,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
+class ShellBridge(private val onReady: () -> Unit) {
+    @android.webkit.JavascriptInterface
+    fun onDomReady() { android.os.Handler(android.os.Looper.getMainLooper()).post { onReady() } }
+}
+
 class MainActivity : AppCompatActivity() {
 
     companion object {
@@ -120,7 +125,7 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = false
             displayZoomControls = false
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            cacheMode = WebSettings.LOAD_DEFAULT
+            cacheMode = WebSettings.LOAD_NO_CACHE
         }
 
         CookieManager.getInstance().apply {
@@ -129,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.setBackgroundColor(0x00000000)
+        webView.addJavascriptInterface(ShellBridge { hideLoading() }, "ShellBridge")
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -144,7 +150,6 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 isLoading = false; cancelLoadTimeout()
                 if (!hasMainFrameError) {
-                    hideLoading()
                     hideError()
                     // Bootstrap 轮询 DOM 就绪，其余注入延迟统一缩短为 300ms
                     injectBootstrapLoader()
@@ -255,11 +260,13 @@ class MainActivity : AppCompatActivity() {
         val s = "(function(){if(window.__hanaBoot)return;window.__hanaBoot=true;" +
             "var MAX=40,INT=200,TRIES=0;" +
             "function poll(){" +
-            "if(document.readyState!=='complete'){if(++TRIES<MAX)setTimeout(poll,INT);return};" +
+            "if(++TRIES>=MAX){console.log('[Shell] DOM poll timeout, force ready');window.__hanaDomReady=Date.now();try{ShellBridge.onDomReady()}catch(e){}return};" +
+            "if(document.readyState!=='complete'){setTimeout(poll,INT);return};" +
             "var root=document.querySelector('.mobile-desktop-root,.ProseMirror,body');" +
             "if(!root){if(++TRIES<MAX){setTimeout(poll,INT);return}}" +
             "window.__hanaDomReady=(Date.now());" +
-            "console.log('[Shell] DOM ready t='+(TRIES*INT+100)+'ms')" +
+            "console.log('[Shell] DOM ready t='+(TRIES*INT+100)+'ms');" +
+            "try{ShellBridge.onDomReady()}catch(e){console.log('[Shell] bridge err:'+e)}" +
             "};setTimeout(poll,100)})()"
         webView.loadUrl("javascript:" + s)
     }

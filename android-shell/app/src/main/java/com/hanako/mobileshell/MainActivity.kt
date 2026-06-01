@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "hanako_shell"
         private const val KEY_URL = "server_url"
         private const val KEY_ACCESS_KEY = "access_key"
-        private const val LOAD_TIMEOUT_MS = 15_000L
+        private const val LOAD_TIMEOUT_MS = 8_000L
         private const val FILE_CHOOSER_REQUEST = 1001
     }
 
@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                isLoading = true; hasMainFrameError = false; hideError(); startLoadTimeout()
+                isLoading = true; hasMainFrameError = false; hideError()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -373,7 +373,7 @@ class MainActivity : AppCompatActivity() {
 
     // ── Load & Error ──────────────────────────────────────────
 
-    private fun loadTargetUrl() { hasMainFrameError = false; hideError(); webView.loadUrl(currentUrl) }
+    private fun loadTargetUrl() { hasMainFrameError = false; hideError(); startLoadTimeout(); webView.loadUrl(currentUrl) }
     private fun showError(d: String) { errorDetail.text = d; errorView.visibility = View.VISIBLE }
     private fun hideError() { errorView.visibility = View.GONE }
     private fun startLoadTimeout() { cancelLoadTimeout(); timeoutHandler.postDelayed({ if (isLoading) { isLoading = false; hasMainFrameError = true; webView.stopLoading(); showError(getString(R.string.error_timeout_detail)) } }, LOAD_TIMEOUT_MS) }

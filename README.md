@@ -18,7 +18,10 @@
 
 ## 应用截图
 
-![截图1](screenshots/截图1.jpg),![截图2](screenshots/截图2.jpg)
+<div align="center">
+  <img src="screenshots/截图1.jpg" width="48%" />
+  <img src="screenshots/截图2.jpg" width="48%" />
+</div>
 
 ---
 
